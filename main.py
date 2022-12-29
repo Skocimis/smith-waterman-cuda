@@ -32,7 +32,7 @@ mod = SourceModule("""
       __syncthreads();
       if(i+1<=dd){
         int x = ((k<=lb)? (1+i) : (k - lb + 1+i));
-		    int y = ((k<=lb)? (k-i) : (lb-i));
+		int y = ((k<=lb)? (k-i) : (lb-i));
         //A[x-1], B[y-1] se uporedjuju
         int v = 0;
         int v1 = matrix[(y-1)*(la+1) + x] - gap;
@@ -41,7 +41,7 @@ mod = SourceModule("""
         if(v1>v) v = v1;
         if(v2>v) v = v2;
         if(v3>v) v = v3;
-		    matrix[y*(la+1) + x] = v;
+		matrix[y*(la+1) + x] = v;
       }
       k++;
     }
