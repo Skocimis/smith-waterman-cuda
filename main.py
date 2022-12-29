@@ -12,8 +12,8 @@ mch = 5
 mss = 3
 gap = 9
 
-A = transformStr("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA") #columns
-B = transformStr("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA") #rows
+A = transformStr("CAGCCUCGCUUAG") #columns
+B = transformStr("AAUGCCAUUGCCGG") #rows
 
 la = A.shape[1]
 lb = B.shape[1]
@@ -22,8 +22,8 @@ matrix = np.zeros((lb+1, la+1), np.int32)
 
 
 mod = SourceModule("""
-  __constant__  int A[8000];
-  __constant__  int B[8000];
+  __constant__  int A[5488];
+  __constant__  int B[5488];
   __global__ void arrayMax(int* array, int n, int* result){
     __shared__ int data[1024];
     int idx = threadIdx.x;
@@ -45,8 +45,16 @@ mod = SourceModule("""
 
   }
   __global__ void smithWaterman(int* matrix, int la, int lb, int match, int miss, int gap){
+    __shared__ int A_shared[5488];
+    __shared__ int B_shared[5488];
     int min = (la<lb)?la:lb;
     int max = (la>lb)?la:lb;
+    int ind = threadIdx.x;
+    while(ind<5488){
+      A_shared[ind] = A[ind];
+      B_shared[ind] = B[ind];
+      ind+=blockDim.x;
+    }
     int k = 1;
     int i = threadIdx.x;
     while(k<min+max){
@@ -55,11 +63,10 @@ mod = SourceModule("""
       if(i+1<=dd){
         int x = ((k<=lb)? (1+i) : (k - lb + 1+i));
 		    int y = ((k<=lb)? (k-i) : (lb-i));
-        //A[x-1], B[y-1] se uporedjuju
         int v = 0;
         int v1 = matrix[(y-1)*(la+1) + x] - gap;
         int v2 = matrix[y*(la+1) + x - 1] - gap;
-        int v3 = matrix[(y-1)*(la+1)+x-1] + ((A[x-1] == B[y-1])?match:(-miss));
+        int v3 = matrix[(y-1)*(la+1)+x-1] + ((A_shared[x-1] == B_shared[y-1])?match:(-miss));
         if(v1>v) v = v1;
         if(v2>v) v = v2;
         if(v3>v) v = v3;
@@ -79,7 +86,7 @@ B_gpu = mod.get_global("B")[0]
 cuda.memcpy_htod(B_gpu, B)
 
 funcSW = mod.get_function("smithWaterman")
-funcSW(matrix_gpu, np.int32(la), np.int32(lb), np.int32(mch), np.int32(mss), np.int32(gap), block = (min(la, lb), 1, 1), grid = (1, 1, 1))
+funcSW(matrix_gpu, np.int32(la), np.int32(lb), np.int32(mch), np.int32(mss), np.int32(gap), block = (1024, 1, 1), grid = (1, 1, 1))
 cuda.memcpy_dtoh(matrix, matrix_gpu)
 print("Matrix: \n", matrix)
 
